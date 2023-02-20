@@ -99,7 +99,7 @@ housing["income_cat"] = pd.cut(housing["median_income"], bins = [0., 1.5, 3.0, 4
 housing["income_cat"].value_counts().sort_index().plot.bar(rot=0, grid=True)
 plt.xlabel("Income category")
 plt.ylabel("Number of districts")
-save_fig("housing_income_cat_bar_plot")  # extra code
+save_fig("housing_income_cat_bar_plot.png")  # extra code
 plt.show()
 
 splitter = StratifiedShuffleSplit(n_splits = 1, test_size = 0.2, random_state = 42)
@@ -130,19 +130,19 @@ compare_props = pd.DataFrame({
 compare_props.plot.bar(rot = 0, grid = True)
 plt.xlabel("Income category")
 plt.ylabel("Proportion of districts")
-save_fig("housing_income_cat_bar_plot")  # extra code
+save_fig("housing_income_cat_bar_plot.png")  # extra code
 plt.show()
 
 compare_props["Stratified %"].plot.bar(rot = 0, grid = True)
 plt.xlabel("Stratified %")
 plt.ylabel("Proportion of districts")
-save_fig("Stratified_housing_income_cat_bar_plot")  # extra code
+save_fig("Stratified_housing_income_cat_bar_plot.png")  # extra code
 plt.show()
 
 compare_props["Random %"].plot.bar(rot = 0, grid = True)
 plt.xlabel("Random %")
 plt.ylabel("Proportion of districts")
-save_fig("Random_housing_income_cat_bar_plot")  # extra code
+save_fig("Random_housing_income_cat_bar_plot.png")  # extra code
 plt.show()
 
 for set_ in (strat_train_set, strat_test_set, test_set):
@@ -151,15 +151,15 @@ for set_ in (strat_train_set, strat_test_set, test_set):
 housing = strat_train_set.copy()
 
 housing.plot(kind = "scatter", x = "longitude", y = "latitude")
-save_fig("bad_visualization_plot")  # extra code
+save_fig("bad_visualization_plot.png")  # extra code
 plt.show()
 
 housing.plot(kind = "scatter", x = "longitude", y = "latitude", alpha = 0.2)
-save_fig("better_visualization_plot")  # extra code
+save_fig("better_visualization_plot.png")  # extra code
 plt.show()
 
 housing.plot(kind = "scatter", x = "longitude", y = "latitude", grid = True, alpha = 0.4, figsize = (10, 7), s = housing["population"] / 100, label = "population", c = "median_house_value", cmap = plt.get_cmap("jet"), colorbar = True)
-save_fig("housing_prices_scatterplot")  # extra code
+save_fig("housing_prices_scatterplot.png")  # extra code
 plt.show()
 
 
