@@ -161,20 +161,3 @@ plt.show()
 housing.plot(kind = "scatter", x = "longitude", y = "latitude", grid = True, alpha = 0.4, figsize = (10, 7), s = housing["population"] / 100, label = "population", c = "median_house_value", cmap = plt.get_cmap("jet"), colorbar = True)
 save_fig("housing_prices_scatterplot.png")  # extra code
 plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
