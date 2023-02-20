@@ -53,7 +53,7 @@ plt.rc('ytick', labelsize = 14)
 plt.rc('legend', fontsize = 14)
 
 housing.hist(bins = 50, figsize = (20, 15))
-save_fig("housing_hist")
+save_fig("housing_hist.png")
 plt.show()
 
 """Create a test set"""
