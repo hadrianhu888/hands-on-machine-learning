@@ -107,8 +107,7 @@ strat_split = []
 for train_index, test_index in splitter.split(housing, housing["income_cat"]):
     strat_train_set_n = housing.loc[train_index]
     strat_test_set_n = housing.loc[test_index]
-    strat_split.append((strat_train_set_n, strat_test_set_n))
-    
+    strat_split.append((strat_train_set_n, strat_test_set_n))    
 
 strat_train_set, strat_test_set = strat_split[0]
 
@@ -161,3 +160,89 @@ plt.show()
 housing.plot(kind = "scatter", x = "longitude", y = "latitude", grid = True, alpha = 0.4, figsize = (10, 7), s = housing["population"] / 100, label = "population", c = "median_house_value", cmap = plt.get_cmap("jet"), colorbar = True)
 save_fig("housing_prices_scatterplot.png")  # extra code
 plt.show()
+
+# Download the California image
+filename = "california.png"
+if not (IMAGES_PATH / filename).is_file():
+    homl3_root = "https://github.com/ageron/handson-ml3/raw/main/"
+    url = homl3_root + "images/end_to_end_project/" + filename
+    print("Downloading", filename)
+    urllib.request.urlretrieve(url, IMAGES_PATH / filename)
+
+housing_renamed = housing.rename(columns={
+    "latitude": "Latitude", "longitude": "Longitude",
+    "population": "Population",
+    "median_house_value": "Median house value (ᴜsᴅ)"})
+housing_renamed.plot(
+                kind="scatter", x="Longitude", y="Latitude",
+                s=housing_renamed["Population"] / 100, label="Population",
+                c="Median house value (ᴜsᴅ)", cmap="jet", colorbar=True,
+                legend=True, sharex=False, figsize=(10, 7))
+
+california_img = plt.imread(IMAGES_PATH / filename)
+axis = -124.55, -113.95, 32.45, 42.05
+plt.axis(axis)
+plt.imshow(california_img, extent=axis)
+
+save_fig("california_housing_prices_plot.png")
+plt.show()
+
+# looking for corelations
+
+corr_matrix = housing.corr()
+
+corr_matrix["median_house_value"].sort_values(ascending = False)
+
+from pandas.plotting import scatter_matrix
+
+attributes = ["median_house_value", "median_income", "total_rooms", "housing_median_age"]
+scatter_matrix(housing[attributes], figsize=(10, 10))
+save_fig("scatter_matrix_plot.png")  # extra code
+plt.show()
+
+housing.plot(kind = "scatter", x = "median_income", y = "median_house_value", alpha = 0.1, grid = True)
+save_fig("housing_income_scatterplot.png")  # extra code
+plt.show()
+
+# experimenting with attribute combinations
+
+housing["rooms_per_household"] = housing["total_rooms"] / housing["households"]
+housing["bedrooms_ratio"] = housing["bedrooms"] / housing["total_bedrooms"]
+housing["people_per_household"] = housing["population"] / housing["households"]
+
+corr_matrix = housing.corr()
+corr_matrix["median_house_value"].sort_values(ascending = False)
+
+housing = strat_train_set.drop("median_house_value", axis = 1)
+housing_labels = strat_train_set["median_house_value"]
+
+null_rows_idx = housing[housing.isnull().any(axis = 1)]
+housing.loc[null_rows_idx].head()
+
+housing_option1 = housing.copy()
+housing_option1.dropna(subset = ["total_bedrooms"], inplace = True)
+housing_option1.loc[null_rows_idx].head()
+
+housing_option2 = housing.copy()
+housing_option2.drop("total_bedrooms", axis=1, inplace=True)  # option 2
+housing_option2.loc[null_rows_idx].head()
+
+housing_option3 = housing.copy()
+median = housing["total_bedrooms"].median()
+housing_option3["total_bedrooms"].fillna(median, inplace=True)  # option 3
+housing_option3.loc[null_rows_idx].head()
+
+from sklearn,impute import SimpleImputer
+
+imputer = SimpleImputer(strategy = "median")
+
+housing_num = housing.select_dtypes(include=[np.number])
+imputer.fit(housing_num)
+
+imputer.statistics_
+
+imputer.median().values()
+
+
+
+
