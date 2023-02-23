@@ -12,6 +12,13 @@ from zlib import crc32
 from sklearn.model_selection import train_test_split
 from scipy.stats import binom 
 from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_predict
+from sklearn.model_selection import KFold
+from sklearn.model_selection import cross_validate
+from sklearn.impute import SimpleImputer
+
 
 DOWNLOAD_ROOT = "https://raw.githubusercontent.com/ageron/handson-ml2/master/"
 HOUSING_PATH = os.path.join(DOWNLOAD_ROOT, "housing.tgz")
@@ -232,16 +239,80 @@ median = housing["total_bedrooms"].median()
 housing_option3["total_bedrooms"].fillna(median, inplace=True)  # option 3
 housing_option3.loc[null_rows_idx].head()
 
-from sklearn,impute import SimpleImputer
-
 imputer = SimpleImputer(strategy = "median")
+housing_num = housing.select_dtypes(include=[np.number])
+imputer.fit(housing_num)
+
+imputer.statistics_
+imputer.median().values()
 
 housing_num = housing.select_dtypes(include=[np.number])
 imputer.fit(housing_num)
 
 imputer.statistics_
+housing_num.median().values
 
-imputer.median().values()
+X = imputer.transform(housing_num)
+imputer.feature_names_in_
+
+housing_tr = pd.DataFrame(X, columns = housing_num.columns, index = housing_num.index)
+housing_tr.loc[null_rows_idx].head()
+
+imputer.strategy
+housing_tr = pd.DataFrame(X, columns = housing_num.columns, index = housing_num.index)
+housing_tr.loc[null_rows_idx].head()
+
+from sklearn.ensemble import set_config 
+set_config(pandas_in_out = True)
+
+from sklearn.ensemble import IsolationForest
+isolation_forest = IsolationForest(random_state = 42)
+outlier_pred = isolation_forest.fit_predict(housing_num)
+
+housing = housing.iloc[outlier_pred == 1]
+housing_labels = housing_labels.iloc[outlier_pred == 1]
+
+housing_cat = housing[["ocean_proximity"]]
+housing_cat.head(10)
+
+from sklearn.preprocessing import OrdinalEncoder
+ordinal_encoder = OrdinalEncoder()
+housing_cat_encoded = ordinal_encoder.fit_transform(housing_cat)
+housing_cat_encoded[:8]
+
+ordinal_encoder.categories_
+
+from sklearn.preprocessing import OneHotEncoder
+cat_encoder = OneHotEncoder()
+housing_cat_1hot = cat_encoder.fit_transform(housing_cat_encoded)
+housing_cat_1hot
+housing_cat_1hot.toarray()
+
+cat_encoer = OneHotEncoder(spares = False)
+housing_cat_1hot = cat_encoder.fit_transform(housing_cat)
+housing_cat_1hot
+
+cat_encoder.categories_
+
+df_test_unknown = pd.DataFrame("ocean_proximity", ["INLAND", "NEAR OCEAN", "NEAR BAY", "ISLAND", "<1H OCEAN"])
+pd.get_dummies(df_test_unknown)
+
+cat_encoder.handle_unknown = "ignore"
+cat_encoder.transform(df_test_unknown)
+cat_encoder.feature_names_in_
+
+cat_encoder.get_feature_names_out()
+df_output = pd.DataFrame(cat_encoder.transform(df_test_unknown), columns = cat_encoder.get_feature_names_out(), index = df_test_unknown.index)
+
+df_output
+
+# Feature Scaling
+
+
+
+
+
+
 
 
 
