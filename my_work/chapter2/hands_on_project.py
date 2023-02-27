@@ -262,10 +262,10 @@ imputer.strategy
 housing_tr = pd.DataFrame(X, columns = housing_num.columns, index = housing_num.index)
 housing_tr.loc[null_rows_idx].head()
 
-from sklearn.ensemble import set_config 
-set_config(pandas_in_out = True)
-
 from sklearn.ensemble import IsolationForest
+isolation_forest = IsolationForest(random_state=42)
+outlier_pred = isolation_forest.fit_predict(X)
+
 isolation_forest = IsolationForest(random_state = 42)
 outlier_pred = isolation_forest.fit_predict(housing_num)
 
@@ -304,7 +304,155 @@ cat_encoder.feature_names_in_
 cat_encoder.get_feature_names_out()
 df_output = pd.DataFrame(cat_encoder.transform(df_test_unknown), columns = cat_encoder.get_feature_names_out(), index = df_test_unknown.index)
 
-df_output
+df_output["ocean_proximity"] = df_test_unknown["ocean_proximity"]
 
 # Feature Scaling
+
+from sklearn.preprocessing import MinMaxScaler 
+
+min_max_scalar = MinMaxScaler(feature_range = (-1,1))
+housing_num_min_max_scaled = min_max_scalar.fit_transform(housing_num)
+
+from sklearn.preprocessing import StandardScaler 
+
+std_scaler = StandardScaler()
+housing_num_std_scaled = std_scaler.fit_transform(housing_num)
+
+fig,axs = plt.subplots(1,2, figsize = (8,3), sharey = True)
+housing["population"].hist(bins = 50, ax = axis[0])
+housing["population"].apply(np.log).hist(bins = 50, ax = axis[1], bins = 50)
+axs[0].set_xlabel("population")
+axs[1].set_xlabel("log(population)")
+axs[0].set_ylabel("Long tail plot")
+save_fig("long_tail_plot.png")
+plt.show()
+
+percentiles = [np.percentile(housing_num[col], [0, 25, 50, 75, 100]) for col in housing_num.columns]
+flattened_median_income = pd.cut(housing["median_income"], bins = [0, 1.5, 3.0, 4.5, 6, np.inf], labels = [1, 2, 3, 4, 5])
+flattened_median_income.hist(bins = 50)
+plt.xlabel("Median income percentile")
+plt.ylabel("NUmber of districts")
+save_fig("median_income_histogram.png")
+plt.show()
+
+from sklearn.metrics.pairwise import rbf_kernel
+age_simil_35 = rbf_kernel(housing_num["housing_median_age"].values.reshape(-1,1), np.array([35]).reshape(-1,1))
+
+ages = np.linspace(housing["housing_median_age"].min(), housing["housing_median_age"].max()).reshape(-1,1)
+gamma1 = 0.3
+gamma2 = 0.03 
+
+rbf1 = rbf_kernel(ages,[[35]], gamma = gamma1)
+rbf2 = rbf_kernel(ages, [[35]], gamma = gamma2)
+
+fig,ax1 = plt.subplots()
+
+ax1.set_xlabel("Housing median age")
+ax1.set_ylabel("Number of Districts")
+ax1.hist(housing["housing_median_age"], bins = 50)
+
+ax2 = ax1.twinx()
+color = "blue"
+ax2.plot(ages, rbf1, color = color) 
+ax2.plot(ages, rbf2, color = color)
+ax2.tick_params(axis = "y", labelcolor = color)
+ax2.set_ylabel("Ages similarity", color = color)
+
+plt.legend(loc= "upper right")
+save_fig("age_similarity_plot.png")
+plt.show()
+
+from sklearn.linear_model import LinearRegression
+target_scaler = StandardScaler()
+scaled_labels = target_scaler.fit_transform(housing_labels.values.toframe())
+
+model = LinearRegression()
+model.fit(housing[["median_income"]], scaled_labels)
+some_new_data = housing[[["median_income"]]].iloc[:5]
+
+scaled_predictions = model.predict(some_new_data)
+predictions = target_scaler.inverse_transform(scaled_predictions)
+
+predictions[:5]
+
+from sklearn.compose import TransformedTargetRegressor
+
+model = TransformedTargetRegressor(regressor = LinearRegression(), transformer = target_scaler)
+model.fit(housing[["median_income"]], housing_labels)
+predictions = model.predict(some_new_data)
+
+predictions[:5]
+
+# Custom Transformers
+
+from sklearn.preprocessing import FunctionTransformer
+
+log_transformer  = FunctionTransformer(np.log1p, validate = True)
+log_pop = log_transformer.housing(housing[["population"]])
+
+rbf_transformer=  FunctionTransformer(rbf_kernel,kw_args=dict(Y=[[35]], gamma=0.3), validate = True)
+age_simil_35 = rbf_transformer.fit_transform(housing[["housing_median_age"]])
+age_simil_35[:5]
+
+sf_coords = 37.7749, -122.41
+sf_transformer = FunctionTransformer(lambda X: X[:,[0]]/X[:,[1]])
+sf_simil=sf_transformer.transform(housing[["latitude", "longitude"]].values)
+sf_simil[:5]
+
+ratio_transformer=FunctionTransformer(lambda X:X[:,[0]]/X[:,[1]], validate = True)
+ratio_transformer.transform(np.array([[1,2],[3,4],[5,6]]))
+
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_array, check_is_fitted
+
+class StandardScalerClone(BaseEstimator,TransformerMixin):
+    def __init__(self,with_mean =True):
+        self.with_mean = with_mean
+    
+    def fit(self,X,y=None):
+        X = check_array(X)
+        self.mean = X.mean(axis = 0) 
+        self.scale = X.std(axis = 0)
+        self.n_features_in_ = X.shape[1] 
+        return self
+    def transform(self,X):
+        check_is_fitted(self)
+        X = check_array(X)
+        assert self.n_features_in_ == X.shape[1]
+        if self.with_mean:
+            X -= self.mean
+        return X / self.scale_
+    
+from sklearn.cluster import KMeans 
+
+class ClusterSimilarity(BaseEstimator,TransformerMixin):
+    def __init__(self,n_clusters=10,gamma=1.0,random_state=None):
+        self.n_clusters = n_clusters
+        self.gamma= gamma
+        self.random_state = random_state
+    def fit(self,X,y=None,sample_weight=None):
+        self.kmeans_ = KMeans(n_clusters = self.n_clusters, random_state = self.random_state)
+        self.kmeans_.fit(X,sample_weight = sample_weight)
+        return self
+    def transform(self,X):
+        return rbf_kernel(X,self.kmeans_.cluster_centers_,gamma = self.gamma)
+    def get_feature_names_out(self,naems=None):
+        return [f"cluster_{i}" for i in range(self.n_clusters)]
+
+cluster_simil = ClusterSimilarity(n_clusters = 10, gamma = 0.3)
+similarities=  cluster_simil.fit_transform(housing[["latitude", "longitude"]],sample_weight = housing_labels)
+
+similarities[:5].round(2)
+
+hosuing_renamed = housing.rename(columns = {"longitude": "lon", "latitude": "lat", "housing_median_age": "age", "total_rooms": "rooms", "total_bedrooms": "bedrooms", "population": "pop", "households": "households", "median_income": "income", "median_house_value": "value"})
+
+housing_renamed["Max Cluster similarity"] = similarities.max(axis = 1)
+
+housing_renamed.plot(kind="scatter", x="lon", y="lat", alpha=0.4, s=housing_renamed["pop"]/100, label="Population", figsize=(10,7), c="Max Cluster similarity", cmap=plt.get_cmap("jet"), colorbar=True, sharex=False)
+plt.plot(cluster_simil.kmeans_.cluster_centers_[:,0], cluster_simil.kmeans_.cluster_centers_[:,1], "kx", markersize=15)
+plt.legend(loc="upper right")
+save_fig("district_cluster_plot.png")
+plt.show()
+
+# Transformation Pipelines 
 
