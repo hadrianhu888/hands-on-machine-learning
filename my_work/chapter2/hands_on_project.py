@@ -456,3 +456,109 @@ plt.show()
 
 # Transformation Pipelines 
 
+from sklearn import set_config
+set_config(display='diagram')
+# set up the pipeline
+num_pipeline = set_config()
+
+housing_num_prepared = num_pipeline.fit_transform(housing_num)
+housing_num_prepared[:5].round(2)
+
+def monkey_patch_get_signature_names_out():
+    """Monkey patch some classes which did not handle get_feature_names_out()
+       correctly in Scikit-Learn 1.0.*."""
+    from inspect import Signature, signature, Parameter
+    import pandas as pd
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import make_pipeline, Pipeline
+    from sklearn.preprocessing import FunctionTransformer, StandardScaler
+
+    default_get_feature_names_out = StandardScaler.get_feature_names_out
+
+    if not hasattr(SimpleImputer, "get_feature_names_out"):
+      print("Monkey-patching SimpleImputer.get_feature_names_out()")
+      SimpleImputer.get_feature_names_out = default_get_feature_names_out
+
+    if not hasattr(FunctionTransformer, "get_feature_names_out"):
+        print("Monkey-patching FunctionTransformer.get_feature_names_out()")
+        orig_init = FunctionTransformer.__init__
+        orig_sig = signature(orig_init)
+
+        def __init__(*args, feature_names_out=None, **kwargs):
+            orig_sig.bind(*args, **kwargs)
+            orig_init(*args, **kwargs)
+            args[0].feature_names_out = feature_names_out
+
+        __init__.__signature__ = Signature(
+            list(signature(orig_init).parameters.values()) + [
+                Parameter("feature_names_out", Parameter.KEYWORD_ONLY)])
+
+        def get_feature_names_out(self, names=None):
+            if callable(self.feature_names_out):
+                return self.feature_names_out(self, names)
+            assert self.feature_names_out == "one-to-one"
+            return default_get_feature_names_out(self, names)
+
+        FunctionTransformer.__init__ = __init__
+        FunctionTransformer.get_feature_names_out = get_feature_names_out
+        
+monkey_patch_get_signature_names_out()
+
+df_housing_num_prepared = pd.DataFrame(housing_num_prepared, columns = num_pipeline.get_feature_names_out(),index=housing_num.index)
+
+df_housing_num_prepared.head(2)
+
+num_pipeline.steps
+
+num_pipeline[1]
+num_pipeline[:-1]
+
+num_pipeline.named_steps["simpleimputer"]
+
+num_pipeline.set_params(simpleimputer__strategy="median")
+
+from sklearn.compose import ColumnTransformer
+num_attributes=["longitude","latitude","housing_median_age","total_rooms","total_bedrooms","population","households","median_income"]
+cat_attribues=["ocean_proximity"]
+cat_pipeline=make_pipeline(SimpleImputer(strategy="most_frequent"),OneHotEncoder(handle_unknnown="ignore"))
+preprocessing=ColumnTransformer([("num",num_pipeline,num_attributes),("cat",cat_pipeline,cat_attribues)])
+housing_prepared=preprocessing.fit_transform(housing)
+housing_prepared_fr =pd.DataFrame(housing_prepared,columns=num_attributes+list(preprocessing.named_transformers_["cat"].named_steps["onehotencoder"].get_feature_names_out(cat_attribues)),index=housing.index)
+housing_prepared_fr.head(2)
+
+def column_ratio(X):
+    return X[:, [0]] / X[:, [1]]
+
+def ratio_name(function_transformer, feature_names_in):
+    return ["ratio"]  # feature names out
+
+def ratio_pipeline():
+    return make_pipeline(
+        SimpleImputer(strategy="median"),
+        FunctionTransformer(column_ratio, feature_names_out=ratio_name),
+        StandardScaler())
+
+log_pipeline = make_pipeline(
+    SimpleImputer(strategy="median"),
+    FunctionTransformer(np.log, feature_names_out="one-to-one"),
+    StandardScaler())
+cluster_simil = ClusterSimilarity(n_clusters=10, gamma=1., random_state=42)
+default_num_pipeline = make_pipeline(SimpleImputer(strategy="median"),
+                                     StandardScaler())
+preprocessing = ColumnTransformer([
+        ("bedrooms", ratio_pipeline(), ["total_bedrooms", "total_rooms"]),
+        ("rooms_per_house", ratio_pipeline(), ["total_rooms", "households"]),
+        ("people_per_house", ratio_pipeline(), ["population", "households"]),
+        ("log", log_pipeline, ["total_bedrooms", "total_rooms", "population",
+                               "households", "median_income"]),
+        ("geo", cluster_simil, ["latitude", "longitude"]),
+        ("cat", cat_pipeline, make_column_selector(dtype_include=object)),
+    ],
+    remainder=default_num_pipeline)  # one column remaining: housing_median_age
+
+housing_prepared=preprocessing.fit_transform(housing)
+housing_prepared.shape
+
+preprocessing.get_feature_names_out()
+
+# Select and Train a Model 
