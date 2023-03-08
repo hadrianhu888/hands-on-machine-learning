@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 import tarfile
 import urllib.request
+import plotly.express as px
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import sklearn as sk
 import numpy as np
 import pandas as pd 
@@ -455,7 +458,7 @@ save_fig("district_cluster_plot.png")
 plt.show()
 
 # Transformation Pipelines 
-
+from sklearn.pipeline import Pipeline
 from sklearn import set_config
 set_config(display='diagram')
 # set up the pipeline
@@ -513,11 +516,14 @@ num_pipeline.steps
 num_pipeline[1]
 num_pipeline[:-1]
 
+make_pipeline = Pipeline([("simpleimputer",SimpleImputer(strategy="mean")),("standard_scaler",StandardScaler())])
+
 num_pipeline.named_steps["simpleimputer"]
 
 num_pipeline.set_params(simpleimputer__strategy="median")
 
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
 num_attributes=["longitude","latitude","housing_median_age","total_rooms","total_bedrooms","population","households","median_income"]
 cat_attribues=["ocean_proximity"]
 cat_pipeline=make_pipeline(SimpleImputer(strategy="most_frequent"),OneHotEncoder(handle_unknnown="ignore"))
@@ -525,9 +531,6 @@ preprocessing=ColumnTransformer([("num",num_pipeline,num_attributes),("cat",cat_
 housing_prepared=preprocessing.fit_transform(housing)
 housing_prepared_fr =pd.DataFrame(housing_prepared,columns=num_attributes+list(preprocessing.named_transformers_["cat"].named_steps["onehotencoder"].get_feature_names_out(cat_attribues)),index=housing.index)
 housing_prepared_fr.head(2)
-
-def column_ratio(X):
-    return X[:, [0]] / X[:, [1]]
 
 def ratio_name(function_transformer, feature_names_in):
     return ["ratio"]  # feature names out
@@ -537,6 +540,8 @@ def ratio_pipeline():
         SimpleImputer(strategy="median"),
         FunctionTransformer(column_ratio, feature_names_out=ratio_name),
         StandardScaler())
+    
+make_column_selector = lambda pattern: lambda df: [col for col in df.columns if re.search(pattern, col)]
 
 log_pipeline = make_pipeline(
     SimpleImputer(strategy="median"),
@@ -544,13 +549,13 @@ log_pipeline = make_pipeline(
     StandardScaler())
 cluster_simil = ClusterSimilarity(n_clusters=10, gamma=1., random_state=42)
 default_num_pipeline = make_pipeline(SimpleImputer(strategy="median"),
-                                     StandardScaler())
+                                        StandardScaler())
 preprocessing = ColumnTransformer([
         ("bedrooms", ratio_pipeline(), ["total_bedrooms", "total_rooms"]),
         ("rooms_per_house", ratio_pipeline(), ["total_rooms", "households"]),
         ("people_per_house", ratio_pipeline(), ["population", "households"]),
         ("log", log_pipeline, ["total_bedrooms", "total_rooms", "population",
-                               "households", "median_income"]),
+                                "households", "median_income"]),
         ("geo", cluster_simil, ["latitude", "longitude"]),
         ("cat", cat_pipeline, make_column_selector(dtype_include=object)),
     ],
@@ -562,3 +567,242 @@ housing_prepared.shape
 preprocessing.get_feature_names_out()
 
 # Select and Train a Model 
+
+from sklearn.linear_model import LinearRegression
+
+lin_reg = Pipeline(['preprocessing', preprocessing, 'linear_regression', LinearRegression()])
+lin_reg.fit(housing, housing_labels)
+
+housing_predictions = lin_reg.predict(housing)
+housing_predictions[:5].round(-2)  # -2 = rounded to the nearest hundred
+
+housing_labels.iloc[:5].values
+
+# extra code – computes the error ratios discussed in the book
+error_ratios = housing_predictions[:5].round(-2) / housing_labels.iloc[:5].values - 1
+print(", ".join([f"{100 * ratio:.1f}%" for ratio in error_ratios]))
+
+from sklearn.metrics import mean_squared_error
+
+lin_rmse = mean_squared_error(housing_labels, housing_predictions,squared=False)
+lin_rmse
+
+from sklearn.tree import DecisionTreeRegressor
+
+tree_reg = make_pipeline(preprocessing, DecisionTreeRegressor(random_state=42))
+tree_reg.fit(housing, housing_labels)
+
+housing_predictions = tree_reg.predict(housing)
+tree_rmse = mean_squared_error(housing_labels, housing_predictions,squared=False)
+tree_rmse
+
+#Fine tune your model
+
+from sklearn.model_selection import GridSearchCV
+
+full_pipeline = Pipeline([("preprocessing", preprocessing), ("linear_regression", LinearRegression())])
+param_grid = [
+    {'preprocessing__geo__n_clusters': [5, 8, 10],
+        'random_forest__max_features': [4, 6, 8]},
+    {'preprocessing__geo__n_clusters': [10, 15],
+        'random_forest__max_features': [6, 8, 10]},
+]
+grid_search = GridSearchCV(full_pipeline, param_grid, cv=3,scoring = "neg_mean_squared_error",return_train_score=True)
+grid_search.fit(housing, housing_labels)
+
+print(str(full_pipeline.get_params().keys())[1:-1] + ", scoring")
+
+grid_search.best_params_
+
+grid_search.best_estimator_
+
+cv_res = pd.DataFrame(grid_search.cv_results_)
+cv_res.sort_values(by="mean_test_score", ascending=False, inplace=True)
+
+cv_res = cv_res[["mean_test_score", "std_test_score", "params"]]
+score_cols = np.sqrt(-cv_res["mean_test_score"])
+cv_res.columns = ["mean_test_score", "std_test_score", "params"]
+cv_res[score_cols] = -cv_res[score_cols].round(2).astype(np.int64)
+
+# Randomized Search
+
+from sklearn.experimental import enable_halving_search_cv
+from sklearn.model_selection import HalvingGridSearchCV
+
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import randint
+# import plt 
+import re 
+import pandas as pd
+
+param_distribs = {'preprocessing__geo__n_clusters': randint(low=5, high=15),'random_forest__max_features': randint(low=4, high=10)}
+rnd_search = RandomizedSearchCV(full_pipeline, param_distributions=param_distribs, n_iter=10, cv=3,scoring = "neg_mean_squared_error",return_train_score=True)
+rnd_search.fit(housing, housing_labels)
+
+cv_res = pd.DataFrame(rnd_search.cv_results_)
+cv_res.sort_values(by="mean_test_score", ascending=False, inplace=True)
+cv_res = cv_res[["param_preprocessing__geo__n_clusters", "mean_test_score", "std_test_score"]]
+cv_res.columns = ["n_clusters", "mean_test_score", "std_test_score"]
+cv_res[score_cols] = -cv_res[score_cols].round(2).astype(np.int64)
+cv_res.head()
+
+from scipy.stats import randint, uniform, geom, expon
+
+xs1 = np.arange(0, 7 + 1)
+randint_distrib = randint(0, 7 + 1).pmf(xs1)
+
+xs2 = np.linspace(0, 7, 500)
+uniform_distrib = uniform(0, 7).pdf(xs2)
+
+xs3 = np.arange(0, 7 + 1)
+geom_distrib = geom(0.5).pmf(xs3)
+
+xs4 = np.linspace(0, 7, 500)
+expon_distrib = expon(scale=1).pdf(xs4)
+
+plt.figure(figsize=(12, 7))
+
+plt.subplot(2, 2, 1)
+plt.bar(xs1, randint_distrib, label="scipy.randint(0, 7 + 1)")
+plt.ylabel("Probability")
+plt.legend()
+plt.axis([-1, 8, 0, 0.2])
+
+plt.subplot(2, 2, 2)
+plt.fill_between(xs2, uniform_distrib, label="scipy.uniform(0, 7)")
+plt.ylabel("PDF")
+plt.legend()
+plt.axis([-1, 8, 0, 0.2])
+
+plt.subplot(2, 2, 3)
+plt.bar(xs3, geom_distrib, label="scipy.geom(0.5)")
+plt.xlabel("Hyperparameter value")
+plt.ylabel("Probability")
+plt.legend()
+plt.axis([0, 7, 0, 1])
+
+plt.subplot(2, 2, 4)
+plt.fill_between(xs4, expon_distrib, label="scipy.expon(scale=1)")
+plt.xlabel("Hyperparameter value")
+plt.ylabel("PDF")
+plt.legend()
+plt.axis([0, 7, 0, 1])
+
+plt.show()
+
+from scipy.stats import reciprocal
+
+xs1 = np.linspace(0, 7, 500)
+expon_distrib = expon(scale=1).pdf(xs1)
+
+log_xs2 = np.linspace(-5, 3, 500)
+log_expon_distrib = np.exp(log_xs2 - np.exp(log_xs2))
+
+xs3 = np.linspace(0.001, 1000, 500)
+reciprocal_distrib = reciprocal(0.001, 1000).pdf(xs3)
+
+log_xs4 = np.linspace(np.log(0.001), np.log(1000), 500)
+log_reciprocal_distrib = uniform(np.log(0.001), np.log(1000)).pdf(log_xs4)
+
+plt.figure(figsize=(12, 7))
+
+plt.subplot(2, 2, 1)
+plt.fill_between(xs1, expon_distrib,
+                 label="scipy.expon(scale=1)")
+plt.ylabel("PDF")
+plt.legend()
+plt.axis([0, 7, 0, 1])
+
+plt.subplot(2, 2, 2)
+plt.fill_between(log_xs2, log_expon_distrib,
+                 label="log(X) with X ~ expon")
+plt.legend()
+plt.axis([-5, 3, 0, 1])
+
+plt.subplot(2, 2, 3)
+plt.fill_between(xs3, reciprocal_distrib,
+                 label="scipy.reciprocal(0.001, 1000)")
+plt.xlabel("Hyperparameter value")
+plt.ylabel("PDF")
+plt.legend()
+plt.axis([0.001, 1000, 0, 0.005])
+
+plt.subplot(2, 2, 4)
+plt.fill_between(log_xs4, log_reciprocal_distrib,
+                 label="log(X) with X ~ reciprocal")
+plt.xlabel("Log of hyperparameter value")
+plt.legend()
+plt.axis([-8, 1, 0, 0.2])
+
+plt.show()
+
+# Analyze the Best Models and Their Errors
+
+final_model = rnd_search.best_estimator_
+feature_importances = final_model.named_steps["random_forest"].feature_importances_
+feature_importances.round(2)
+
+sorted(zip(feature_importances, final_model.named_steps["preprocessing"].transformers_[0][1].get_feature_names()), reverse=True)
+
+# Evaluate Your System on the Test Set
+
+X_test = strat_test_set.drop("median_house_value", axis=1)
+Y_test = strat_test_set["median_house_value"].copy()
+
+final_predictions = final_model.predict(X_test)
+
+final_remse = mean_squared_error(Y_test, final_predictions, squared=False)
+final_remse
+print(final_remse)
+
+from scipy import stats 
+
+confidence = 0.95
+squared_errors = (final_predictions - Y_test) ** 2
+np.sqrt(stats.t.interval(confidence, len(squared_errors) - 1,loc=squared_errors.mean(), scale=stats.sem(squared_errors)))
+
+# Extra code - shows how to compute the confidence inverval for the RMSE 
+
+m = len(squared_errors)
+mean = squared_errors.mean()
+tscore = stats.t.ppf((1 + confidence) / 2, df=m - 1)
+tmargin = tscore * squared_errors.std(ddof=1) / np.sqrt(m)
+np.sqrt(mean - tmargin), np.sqrt(mean + tmargin)
+
+zscore = stats.norm.ppf((1 + confidence) / 2)
+zmargin = zscore * squared_errors.std(ddof=1) / np.sqrt(m)
+np.sqrt(mean - zmargin), np.sqrt(mean + zmargin)
+
+import joblib
+
+joblib.dump(final_model, "my_california_housing_model.pkl")
+
+from sklearn.cluster import KMeans
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.metrics.pairwise import haversine_distances
+
+def column_ratio(X):
+    return X[:, 0] / X[:, 1]
+
+final_model_reloaded = joblib.load("my_california_housing_model.pkl")
+
+new_data = housing.iloc[:5]
+predictions = final_model_reloaded.predict(new_data)
+
+predictions
+
+# try with a vector machine regressor
+
+from sklearn import svm
+
+housing_data = housing.drop("median_house_value", axis=1)
+housing_data.head()
+
+housing_labels = housing["median_house_value"].copy()
+# use SVM regressor
+housing_SVM_regressor = svm.SVR()
+# plot the regressor 
+housing_SVM_regressor.fit(housing_data, housing_labels)
+plot = housing_SVM_regressor.predict(housing_data)
+plt.plot(plot)
+plt.show()
