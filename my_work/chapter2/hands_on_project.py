@@ -25,7 +25,7 @@ from sklearn.impute import SimpleImputer
 
 DOWNLOAD_ROOT = "https://raw.githubusercontent.com/ageron/handson-ml2/master/"
 HOUSING_PATH = os.path.join(DOWNLOAD_ROOT, "housing.tgz")
-HOUSING_URL = DOWNLOAD_ROOT + "datasets/housing/housing.tgz"
+HOUSING_URL = os.path.join(DOWNLOAD_ROOT,"datasets/housing/housing.tgz")
 
 def fetch_housing_data(housing_url=HOUSING_URL, housing_path=HOUSING_PATH):
     tarball_path = Path("datasets/housing/housing.tgz")
@@ -323,7 +323,7 @@ housing_num_std_scaled = std_scaler.fit_transform(housing_num)
 
 fig,axs = plt.subplots(1,2, figsize = (8,3), sharey = True)
 housing["population"].hist(bins = 50, ax = axis[0])
-housing["population"].apply(np.log).hist(bins = 50, ax = axis[1], bins = 50)
+housing["population"].apply(np.log).hist(bins = 50, ax = axis[1])
 axs[0].set_xlabel("population")
 axs[1].set_xlabel("log(population)")
 axs[0].set_ylabel("Long tail plot")
@@ -806,3 +806,349 @@ housing_SVM_regressor.fit(housing_data, housing_labels)
 plot = housing_SVM_regressor.predict(housing_data)
 plt.plot(plot)
 plt.show()
+
+# use RandomizedSearchCV to find the best hyperparameters for the SVM regressor
+
+from sklearn.model_selection import RandomizedSearchCV
+
+param_distributions = {'kernel': ['linear', 'poly', 'rbf', 'sigmoid'], 'C': reciprocal(20, 200000), 'gamma': expon(scale=1.0), 'epsilon': expon(scale=1.0)}
+housing_randomized_search_cv = RandomizedSearchCV(housing_SVM_regressor, param_distributions=param_distributions, n_iter=10, cv=5, verbose=2, n_jobs=-1)
+housing_randomized_search_cv.fit(housing_data, housing_labels)
+housing_randomized_search_cv.best_estimator_
+print(housing_randomized_search_cv.best_estimator_)
+
+# Create a transformer that prepares a pipeline that finds the most important features
+
+from sklearn.pipeline import Pipeline
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.ensemble import RandomForestClassifier
+
+class FeatureSelectorTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, num_features):
+        self.num_features = num_features
+
+    def fit(self, X, y=None):
+        selector = SelectKBest(f_classif, k=self.num_features)
+        selector.fit(X, y)
+        self.selected_features_ = selector.get_support()
+        return self
+
+    def transform(self, X, y=None):
+        return X[:,self.selected_features_]
+
+pipeline = Pipeline([
+    ('feature_selector', FeatureSelectorTransformer(num_features=10)),
+    ('classifier', RandomForestClassifier())
+])
+
+# implement the transformation pipeline above to find the most important features in the California housing dataset
+
+from sklearn.datasets import fetch_california_housing
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+
+RandomForestRegressor = RandomForestClassifier()
+
+# Load the California housing dataset
+dataset = fetch_california_housing(as_frame=True)
+X = dataset.data
+y = dataset.target
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Define the pipeline
+pipeline = Pipeline([
+    ('feature_selector', FeatureSelectorTransformer(num_features=5)),
+    ('regressor', RandomForestRegressor(random_state=42))
+])
+
+# Fit the pipeline on the training data
+pipeline.fit(X_train, y_train)
+
+# Predict on the testing data
+y_pred = pipeline.predict(X_test)
+
+# Calculate the root mean squared error
+rmse = mean_squared_error(y_test, y_pred, squared=False)
+print('RMSE:', rmse)
+
+# Complete the pipeline with a preprocessing step that scales the data
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+
+# Load the California housing dataset
+dataset = fetch_california_housing(as_frame=True)
+X = dataset.data
+y = dataset.target
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Define the pipeline
+numeric_transformer = Pipeline([
+    ('scaler', StandardScaler()),
+    ('selector', SelectKBest(f_regression, k=3))
+])
+
+categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+
+preprocessor = ColumnTransformer(transformers=[
+    ('num', numeric_transformer, ['MedInc', 'HouseAge', 'AveRooms', 'AveOccup', 'Latitude', 'Longitude']),
+    ('cat', categorical_transformer, ['OceanProximity'])
+])
+
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('regressor', RandomForestRegressor(random_state=42))
+])
+
+# Fit the pipeline on the training data
+pipeline.fit(X_train, y_train)
+
+# Predict on the testing data
+y_pred = pipeline.predict(X_test)
+
+# Calculate the root mean squared error
+rmse = mean_squared_error(y_test, y_pred, squared=False)
+print('RMSE:', rmse)
+
+# Plot the feature importances
+feature_importances = pipeline.named_steps['regressor'].feature_importances_
+features = preprocessor.transformers_[0][2] + list(preprocessor.transformers_[1][1].get_feature_names(['OceanProximity']))
+sorted_indices = feature_importances.argsort()
+plt.barh(range(len(sorted_indices)), feature_importances[sorted_indices])
+plt.yticks(range(len(sorted_indices)), [features[i] for i in sorted_indices])
+plt.xlabel('Feature importance')
+plt.show()
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVR 
+
+param_grid = [{'svr__kernel': ['linear'], 'svr__C': [10., 30., 100., 300., 1000., 3000., 10000., 30000.]}, {'svr__kernel': ['rbf'], 'svr__C': [1.0, 3.0, 10., 30., 100., 300., 1000.], 'svr__gamma': [0.01, 0.03, 0.1, 0.3, 1.0, 3.0]}, {'svr__kernel': ['poly'], 'svr__C': [1.0, 3.0, 10., 30., 100., 300., 1000.], 'svr__degree': [2, 3], 'svr__gamma': [0.01, 0.03, 0.1, 0.3, 1.0, 3.0]}]
+
+svr_pipeline = Pipeline(["preprocessing", preprocessing], ["svr", SVR()])
+grid_search = GridSearchCV(svr_pipeline, param_grid, cv=3, verbose=2, n_jobs=-1)
+grid_search.fit(housing.iloc[:, :-1], housing["median_house_value"])
+
+svr_grid_search_rmse = -grid_search.best_score_
+svr_grid_search_rmse
+
+grid_search.best_params_
+
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import expon, reciprocal
+
+# see https://docs.scipy.org/doc/scipy/reference/stats.html
+# for `expon()` and `reciprocal()` documentation and more probability distribution functions.
+
+# Note: gamma is ignored when kernel is "linear"
+param_distribs = {
+        'svr__kernel': ['linear', 'rbf'],
+        'svr__C': reciprocal(20, 200_000),
+        'svr__gamma': expon(scale=1.0),
+    }
+
+rnd_search = RandomizedSearchCV(svr_pipeline,
+                                param_distributions=param_distribs,
+                                n_iter=50, cv=3,
+                                scoring='neg_root_mean_squared_error',
+                                random_state=42)
+rnd_search.fit(housing.iloc[:5000], housing_labels.iloc[:5000])
+
+svr_rnd_search_rmse = -rnd_search.best_score_
+svr_rnd_search_rmse
+
+rnd_search.best_params_
+
+np.random.seed(42)
+
+s = expon(scale=1).rvs(100_000)  # get 100,000 samples
+((s > 0.105) & (s < 2.29)).sum() / 100_000
+
+
+selector_pipeline = Pipeline([
+    ('preprocessing', preprocessing),
+    ('selector', SelectFromModel(RandomForestRegressor(random_state=42),
+                                 threshold=0.005)),  # min feature importance
+    ('svr', SVR(C=rnd_search.best_params_["svr__C"],
+                gamma=rnd_search.best_params_["svr__gamma"],
+                kernel=rnd_search.best_params_["svr__kernel"])),
+])
+
+selector_rmses = -cross_val_score(selector_pipeline,
+                                  housing.iloc[:5000],
+                                  housing_labels.iloc[:5000],
+                                  scoring="neg_root_mean_squared_error",
+                                  cv=3)
+pd.Series(selector_rmses).describe()
+
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.base import MetaEstimatorMixin, clone
+
+class FeatureFromRegressor(MetaEstimatorMixin, BaseEstimator, TransformerMixin):
+    def __init__(self, estimator):
+        self.estimator = estimator
+
+    def fit(self, X, y=None):
+        estimator_ = clone(self.estimator)
+        estimator_.fit(X, y)
+        self.estimator_ = estimator_
+        self.n_features_in_ = self.estimator_.n_features_in_
+        if hasattr(self.estimator, "feature_names_in_"):
+            self.feature_names_in_ = self.estimator.feature_names_in_
+        return self  # always return self!
+    
+    def transform(self, X):
+        check_is_fitted(self)
+        predictions = self.estimator_.predict(X)
+        if predictions.ndim == 1:
+            predictions = predictions.reshape(-1, 1)
+        return predictions
+
+    def get_feature_names_out(self, names=None):
+        check_is_fitted(self)
+        n_outputs = getattr(self.estimator_, "n_outputs_", 1)
+        estimator_class_name = self.estimator_.__class__.__name__
+        estimator_short_name = estimator_class_name.lower().replace("_", "")
+        return [f"{estimator_short_name}_prediction_{i}"
+                for i in range(n_outputs)]
+        
+from sklearn.utils.estimator_checks import check_estimator
+
+check_estimator(FeatureFromRegressor(KNeighborsRegressor()))
+
+knn_reg = KNeighborsRegressor(n_neighbors=3, weights="distance")
+knn_transformer = FeatureFromRegressor(knn_reg)
+geo_features = housing[["latitude", "longitude"]]
+knn_transformer.fit_transform(geo_features, housing_labels)
+
+knn_transformer.get_feature_names_out()
+
+from sklearn.base import clone
+
+transformers = [(name, clone(transformer), columns)
+                for name, transformer, columns in preprocessing.transformers]
+geo_index = [name for name, _, _ in transformers].index("geo")
+transformers[geo_index] = ("geo", knn_transformer, ["latitude", "longitude"])
+
+new_geo_preprocessing = ColumnTransformer(transformers)
+
+new_geo_pipeline = Pipeline([
+    ('preprocessing', new_geo_preprocessing),
+    ('svr', SVR(C=rnd_search.best_params_["svr__C"],
+                gamma=rnd_search.best_params_["svr__gamma"],
+                kernel=rnd_search.best_params_["svr__kernel"])),
+])
+
+new_pipe_rmses = -cross_val_score(new_geo_pipeline,
+                                  housing.iloc[:5000],
+                                  housing_labels.iloc[:5000],
+                                  scoring="neg_root_mean_squared_error",
+                                  cv=3)
+pd.Series(new_pipe_rmses).describe()
+
+param_distribs = {
+    "preprocessing__geo__estimator__n_neighbors": range(1, 30),
+    "preprocessing__geo__estimator__weights": ["distance", "uniform"],
+    "svr__C": reciprocal(20, 200_000),
+    "svr__gamma": expon(scale=1.0),
+}
+
+new_geo_rnd_search = RandomizedSearchCV(new_geo_pipeline,
+                                        param_distributions=param_distribs,
+                                        n_iter=50,
+                                        cv=3,
+                                        scoring='neg_root_mean_squared_error',
+                                        random_state=42)
+
+new_geo_rnd_search_rmse = -new_geo_rnd_search.best_score_
+new_geo_rnd_search_rmse
+
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_array, check_is_fitted
+
+class StandardScalerClone(BaseEstimator, TransformerMixin):
+    def __init__(self, with_mean=True):  # no *args or **kwargs!
+        self.with_mean = with_mean
+
+    def fit(self, X, y=None):  # y is required even though we don't use it
+        X_orig = X
+        X = check_array(X)  # checks that X is an array with finite float values
+        self.mean_ = X.mean(axis=0)
+        self.scale_ = X.std(axis=0)
+        self.n_features_in_ = X.shape[1]  # every estimator stores this in fit()
+        if hasattr(X_orig, "columns"):
+            self.feature_names_in_ = np.array(X_orig.columns, dtype=object)
+        return self  # always return self!
+
+    def transform(self, X):
+        check_is_fitted(self)  # looks for learned attributes (with trailing _)
+        X = check_array(X)
+        if self.n_features_in_ != X.shape[1]:
+            raise ValueError("Unexpected number of features")
+        if self.with_mean:
+            X = X - self.mean_
+        return X / self.scale_
+    
+    def inverse_transform(self, X):
+        check_is_fitted(self)
+        X = check_array(X)
+        if self.n_features_in_ != X.shape[1]:
+            raise ValueError("Unexpected number of features")
+        X = X * self.scale_
+        return X + self.mean_ if self.with_mean else X
+    
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            return getattr(self, "feature_names_in_",
+                           [f"x{i}" for i in range(self.n_features_in_)])
+        else:
+            if len(input_features) != self.n_features_in_:
+                raise ValueError("Invalid number of features")
+            if hasattr(self, "feature_names_in_") and not np.all(
+                self.feature_names_in_ == input_features
+            ):
+                raise ValueError("input_features ≠ feature_names_in_")
+            return input_features
+        
+from sklearn.utils.estimator_checks import check_estimator
+
+check_estimator(StandardScalerClone())
+
+np.random.seed(42)
+X = np.random.rand(1000, 3)
+
+scaler = StandardScalerClone()
+X_scaled = scaler.fit_transform(X)
+
+assert np.allclose(X_scaled, (X - X.mean(axis=0)) / X.std(axis=0))
+
+scaler = StandardScalerClone(with_mean=False)
+X_scaled_uncentered = scaler.fit_transform(X)
+
+assert np.allclose(X_scaled_uncentered, X / X.std(axis=0))
+
+scaler = StandardScalerClone()
+X_back = scaler.inverse_transform(scaler.fit_transform(X))
+
+assert np.allclose(X, X_back)
+
+assert np.all(scaler.get_feature_names_out() == ["x0", "x1", "x2"])
+assert np.all(scaler.get_feature_names_out(["a", "b", "c"]) == ["a", "b", "c"])
+
+df = pd.DataFrame({"a": np.random.rand(100), "b": np.random.rand(100)})
+scaler = StandardScalerClone()
+X_scaled = scaler.fit_transform(df)
+
+assert np.all(scaler.feature_names_in_ == ["a", "b"])
+assert np.all(scaler.get_feature_names_out() == ["a", "b"])
