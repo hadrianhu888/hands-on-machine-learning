@@ -137,5 +137,52 @@ confusion_matrix(y_train_S, y_train_perfect_predictions)
 
 # Precision and recall
 
+y_scores = cross_val_predict(sdg_clf,X_train,y_train_S,cv=3,method="decision_function")
+y_scores
+
+threshold = 0
+
+y_some_digit_pred = (y_scores > threshold)
+
+y_some_digit_pred
+
+y_scores > 0
+
+y_scores = cross_val_predict(sdg_clf,X_train,y_train_S,cv=3,method="decision_function")
+
+from sklearn.metrics import precision_score, recall_score
+
+precisions, recalls, thresholds = precision_recall_curve(y_train_S,y_scores)
+
+plt.figure(figsize=(8, 4))  # extra code – it's not needed, just formatting
+plt.plot(thresholds, precisions[:-1], "b--", label="Precision", linewidth=2)
+plt.plot(thresholds, recalls[:-1], "g-", label="Recall", linewidth=2)
+plt.vlines(threshold, 0, 1.0, "k", "dotted", label="threshold")
+
+# extra code – this section just beautifies and saves Figure 3–5
+idx = (thresholds >= threshold).argmax()  # first index ≥ threshold
+plt.plot(thresholds[idx], precisions[idx], "bo")
+plt.plot(thresholds[idx], recalls[idx], "go")
+plt.axis([-50000, 50000, 0, 1])
+plt.grid()
+plt.xlabel("Threshold")
+plt.legend(loc="center right")
+save_fig(image_dir + "precision_recall_vs_threshold_plot.svg", tight_layout=False)
+
+plt.show()
+
+idx_for_90_precision = np.argmax(precisions >= 0.90)
+threshold_for_90_precision = thresholds[idx_for_90_precision]
+threshold_for_90_precision
+
+y_train_pred_90 = (y_scores >= threshold_for_90_precision)
+
+precision_score(y_train_S,y_train_pred_90)
+
+recall_at_90_precision = recalls[idx_for_90_precision]
+recall_at_90_precision
+
+# ROC curve
+
 
 
