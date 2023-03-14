@@ -184,5 +184,77 @@ recall_at_90_precision
 
 # ROC curve
 
+from sklearn.metrics import roc_curve 
+fpr,tpr,thresholds=  roc_curve(y_train_S,y_scores)
 
+idx_for_threshold_at_90 = (thresholds <= threshold_for_90_precision).argmax()
+tpr_90, fpr_90 = tpr[idx_for_threshold_at_90], fpr[idx_for_threshold_at_90]
+
+plt.figure(figsize=(6, 5))  # extra code – not needed, just formatting
+plt.plot(fpr, tpr, linewidth=2, label="ROC curve")
+plt.plot([0, 1], [0, 1], 'k:', label="Random classifier's ROC curve")
+plt.plot([fpr_90], [tpr_90], "ko", label="Threshold for 90% precision")
+
+# extra code – just beautifies and saves Figure 3–7
+plt.gca().add_patch(patches.FancyArrowPatch(
+    (0.20, 0.89), (0.07, 0.70),
+    connectionstyle="arc3,rad=.4",
+    arrowstyle="Simple, tail_width=1.5, head_width=8, head_length=10",
+    color="#444444"))
+plt.text(0.12, 0.71, "Higher\nthreshold", color="#333333")
+plt.xlabel('False Positive Rate (Fall-Out)')
+plt.ylabel('True Positive Rate (Recall)')
+plt.grid()
+plt.axis([0, 1, 0, 1])
+plt.legend(loc="lower right", fontsize=13)
+save_fig(image_dir + "roc_curve_plot.svg", tight_layout=False)
+
+plt.show()
+
+from sklearn.metrics import roc_auc_score
+
+roc_auc_score(y_train_S,y_scores)
+
+from sklearn.ensemble import RandomForestClassifier
+
+forest_clf = RandomForestClassifier(random_state=42)
+
+y_probas_forest = cross_val_predict(forest_clf,X_train,y_train_S,cv=3,method="predict_proba")
+
+y_probas_forest[:5]
+
+idx_50_to_90 = (y_scores >= threshold_for_90_precision).argmax()
+
+print(f"{(y_scores >= threshold_for_90_precision).sum()} / {len(y_scores)} = {100 * (y_scores >= threshold_for_90_precision).sum() / len(y_scores)}")
+
+y_scores_forest = y_probas_forest[:, 1]  # score = proba of positive class
+
+precisions_forest, recalls_forest, thresholds_forest = precision_recall_curve(y_train_S,y_scores_forest)
+
+
+plt.figure(figsize=(6, 5))  # extra code – not needed, just formatting
+
+plt.plot(recalls_forest, precisions_forest, "b-", linewidth=2,label="Random Forest")
+plt.plot(recalls, precisions, "--", linewidth=2, label="SGD")
+
+# extra code – just beautifies and saves Figure 3–8
+plt.xlabel("Recall")
+plt.ylabel("Precision")
+plt.axis([0, 1, 0, 1])
+plt.grid()
+plt.legend(loc="lower left")
+save_fig(image_dir + "pr_curve_comparison_plot.svg", tight_layout=False)
+
+plt.show()
+
+y_train_pred_forest = y_probas_forest[:, 1] > 0.5
+f1_score(y_train_S,y_train_pred_forest)
+
+roc_auc_score(y_train_S,y_scores_forest)
+
+precision_score(y_train_S,y_train_pred_forest)
+
+recall_score(y_train_S,y_train_pred_forest)
+
+# Multiclass classification
 
