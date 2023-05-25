@@ -570,3 +570,78 @@ save_fig(image_dir + "cleaned_digit_example_plot")
 # get the basline k-nearest neighbour classifier as a reference
 
 from sklearn.model_selection import GridSearchCV
+
+knn_clf = KNeighborsClassifier()
+param_grid = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+grid_search = GridSearchCV(knn_clf, param_grid, cv=5, verbose=3, n_jobs=-1)
+grid_search.fit(X_train, y_train)
+
+grid_search.best_params_
+
+grid_search.best_score_
+
+from sklearn.metrics import accuracy_score
+
+y_pred = grid_search.predict(X_test)
+accuracy_score(y_test, y_pred)
+
+# Data augmentation
+
+from scipy.ndimage.interpolation import shift
+
+knn_clf = KNeighborsClassifier(**grid_search.best_params_)
+knn_clf.fit(X_train, y_train)
+knn_clf.score(X_test, y_test)
+
+shifted_images = [for images in X_train 
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                        for images in shift(images.reshape(28, 28), (dx, dy), cval=0)
+                ]
+
+X_train_augmented = np.array(X_train + shifted_images)
+y_train_augmented = np.array(y_train + [label for label in y_train for _ in range(4)])
+
+shuffle_idx = np.random.permutation(len(X_train_augmented))
+X_train_augmented = X_train_augmented[shuffle_idx]
+y_train_augmented = y_train_augmented[shuffle_idx]
+
+knn_clf.fit(X_train_augmented, y_train_augmented)
+y_pred = knn_clf.predict(X_test)
+accuracy_score(y_test, y_pred)
+
+# Exercise: Write a function with the MNIST classifier that can shift the image in any direction 
+
+# Tackle the Titanic dataset
+
+import os
+import pandas as pd
+
+TITANIC_PATH = os.path.join("datasets", "titanic")
+
+from sklearn.base import BaseEstimator, TransformerMixin
+
+train_data = pd.read_csv(TITANIC_PATH + "/train.csv")
+class DataFrameSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, attribute_names):
+        self.attribute_names = attribute_names
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        return X[self.attribute_names].values
+    
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+
+num_pipeline = Pipeline([
+    ("select_numeric", DataFrameSelector(["Age", "SibSp", "Parch", "Fare"])),
+    ("imputer", SimpleImputer(strategy="median"))
+])
+
+num_pipeline.fit_transform(train_data)
+
+from sklearn.preprocessing import OneHotEncoder
+
+cat_pipeline = Pipeline([
+    
