@@ -593,10 +593,10 @@ knn_clf = KNeighborsClassifier(**grid_search.best_params_)
 knn_clf.fit(X_train, y_train)
 knn_clf.score(X_test, y_test)
 
-shifted_images = [for images in X_train 
-                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
-                        for images in shift(images.reshape(28, 28), (dx, dy), cval=0)
-                ]
+dx = 1
+dy = 0
+
+shifted_images = [shift(image, [0, dx, dy]) for image in X_train]
 
 X_train_augmented = np.array(X_train + shifted_images)
 y_train_augmented = np.array(y_train + [label for label in y_train for _ in range(4)])
@@ -609,7 +609,7 @@ knn_clf.fit(X_train_augmented, y_train_augmented)
 y_pred = knn_clf.predict(X_test)
 accuracy_score(y_test, y_pred)
 
-# Exercise: Write a function with the MNIST classifier that can shift the image in any direction 
+# Exercise: Write a function with the MNIST classifier that can shift the image in any direction
 
 # Tackle the Titanic dataset
 
@@ -621,27 +621,618 @@ TITANIC_PATH = os.path.join("datasets", "titanic")
 from sklearn.base import BaseEstimator, TransformerMixin
 
 train_data = pd.read_csv(TITANIC_PATH + "/train.csv")
+
+
 class DataFrameSelector(BaseEstimator, TransformerMixin):
     def __init__(self, attribute_names):
         self.attribute_names = attribute_names
-    
+
     def fit(self, X, y=None):
         return self
-    
+
     def transform(self, X):
         return X[self.attribute_names].values
-    
+
+
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 
-num_pipeline = Pipeline([
-    ("select_numeric", DataFrameSelector(["Age", "SibSp", "Parch", "Fare"])),
-    ("imputer", SimpleImputer(strategy="median"))
-])
+num_pipeline = Pipeline(
+    [
+        ("select_numeric", DataFrameSelector(["Age", "SibSp", "Parch", "Fare"])),
+        ("imputer", SimpleImputer(strategy="median")),
+    ]
+)
 
 num_pipeline.fit_transform(train_data)
 
 from sklearn.preprocessing import OneHotEncoder
 
-cat_pipeline = Pipeline([
-    
+# cat_pipeline = Pipeline([knn_clf = KNeighborsClassifier(**grid_search.best_params_)])
+
+from sklearn.pipeline import FeatureUnion
+
+preprocess_pipeline = FeatureUnion(transformer_list=["num_pipeline", "cat_pipeline"])
+
+X_train = preprocess_pipeline.fit_transform(train_data)
+X_train
+
+y_train = train_data["Survived"]
+
+from sklearn.svm import SVC
+
+svm_clf = SVC(gamma="auto")
+svm_clf.fit(X_train, y_train)
+
+from sklearn.model_selection import cross_val_score
+
+svm_scores = cross_val_score(svm_clf, X_train, y_train, cv=10)
+
+svm_scores.mean()
+
+from sklearn.ensemble import RandomForestClassifier
+
+forest_clf = RandomForestClassifier(n_estimators=100, random_state=42)
+
+forest_scores = cross_val_score(forest_clf, X_train, y_train, cv=10)
+
+forest_scores.mean()
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(8, 4))
+
+plt.plot([1] * 10, svm_scores, ".")
+
+plt.plot([2] * 10, forest_scores, ".")
+
+plt.boxplot([svm_scores, forest_scores], labels=("SVM", "Random Forest"))
+
+plt.ylabel("Accuracy", fontsize=14)
+
+save_fig(image_dir + "boxplot_comparison_plot")
+
+plt.show()
+
+from sklearn.preprocessing import StandardScaler
+
+from sklearn.pipeline import Pipeline
+
+from sklearn.svm import SVC
+
+from sklearn.model_selection import GridSearchCV
+
+svm_clf = Pipeline([("scaler", StandardScaler()), ("svm_clf", SVC(gamma="auto"))])
+
+param_grid = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+
+grid_search = GridSearchCV(svm_clf, param_grid, cv=5, verbose=3, n_jobs=-1)
+
+grid_search.fit(X_train, y_train)
+
+grid_search.best_params_
+
+grid_search.best_score_
+
+from sklearn.model_selection import RandomizedSearchCV
+
+from scipy.stats import reciprocal, uniform
+
+param_distributions = {"gamma": reciprocal(0.001, 0.1), "C": uniform(1, 10)}
+
+rnd_search_cv = RandomizedSearchCV(
+    svm_clf, param_distributions, n_iter=10, verbose=2, cv=3, n_jobs=-1
+)
+
+rnd_search_cv.fit(X_train, y_train)
+
+rnd_search_cv.best_score_
+
+rnd_search_cv.best_estimator_
+
+rnd_search_cv.best_estimator_.fit(X_train, y_train)
+
+X_test = preprocess_pipeline.transform(test_data)
+
+y_pred = rnd_search_cv.best_estimator_.predict(X_test)
+
+# Data augmentation
+
+from scipy.ndimage import shift
+
+
+def shift_image(image, dx, dy):
+    image = image.reshape((28, 28))
+    shifted_image = shift(image, [dy, dx], cval=0, mode="constant")
+    return shifted_image.reshape([-1])
+
+
+image = X_train[1000]
+shifted_image_down = shift_image(image, 0, 5)
+shifted_image_left = shift_image(image, -5, 0)
+
+plt.figure(figsize=(12, 3))
+plt.subplot(131)
+plt.title("Original", fontsize=14)
+plt.imshow(image.reshape(28, 28), interpolation="nearest", cmap="Greys")
+plt.subplot(132)
+plt.title("Shifted down", fontsize=14)
+plt.imshow(shifted_image_down.reshape(28, 28), interpolation="nearest", cmap="Greys")
+plt.subplot(133)
+plt.title("Shifted left", fontsize=14)
+plt.imshow(shifted_image_left.reshape(28, 28), interpolation="nearest", cmap="Greys")
+plt.subplot(134)
+plt.title("Shifted down", fontsize=14)
+plt.imshow(shifted_image_down.reshape(28, 28), interpolation="nearest", cmap="Greys")
+plt.subplot(135)
+plt.title("Shifted left", fontsize=14)
+plt.imshow(shifted_image_left.reshape(28, 28), interpolation="nearest", cmap="Greys")
+plt.show()
+
+X_train_augmented = [image for image in X_train]
+y_train_augmented = [label for label in y_train]
+
+for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+    for image, label in zip(X_train, y_train):
+        X_train_augmented.append(shift_image(image, dx, dy))
+        y_train_augmented.append(label)
+
+X_train_augmented = np.array(X_train_augmented)
+y_train_augmented = np.array(y_train_augmented)
+
+shuffle_idx = np.random.permutation(len(X_train_augmented))
+X_train_augmented = X_train_augmented[shuffle_idx]
+y_train_augmented = y_train_augmented[shuffle_idx]
+
+knn_clf = KNeighborsClassifier(**grid_search.best_params_)
+knn_clf.fit(X_train_augmented, y_train_augmented)
+
+y_pred = knn_clf.predict(X_test)
+
+augmented_accuracy = knn_clf.score(X_test, y_test)
+augmented_accuracy = np.mean(y_pred == y_test)
+augmented_accuracy = np.max(y_pred == y_test)
+
+error_rate_change = (1 - augmented_accuracy) / (1 - accuracy) - 1
+print(f"error rate change: {error_rate_change:.4f}")
+
+# Tackle the Titanic dataset
+
+import os
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import tarfile
+import urlib.request as ur
+
+DOWNLOAD_ROOT = "https://raw.githubusercontent.com/ageron/handson-ml2/master/"
+TITANIC_PATH = os.path.join("datasets", "titanic")
+
+
+def load_titanic_data():
+    csv_path = os.path.join(TITANIC_PATH, "train.csv")
+    return pd.read_csv(csv_path)
+
+
+titanic = load_titanic_data()
+
+train_data, test_data = load_titanic_data()
+
+train_data.head()
+
+train_data = train_data.set_index("PassengerId")
+test_data = test_data.set_index("PassengerId")
+
+train_data.info()
+
+train_data.describe()
+
+train_data[train_data["Sex"] == "Female"]["Age"].median()
+
+train_data.describe()
+
+train_data["Survived"].value_counts()
+
+train_data["Pclass"].value_counts()
+
+train_data["Sex"].value_counts()
+
+train_data["Embarked"].value_counts()
+
+train_data["SibSp"].value_counts()
+
+train_data["Parch"].value_counts()
+
+train_data["Cabin"].value_counts()
+
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+
+num_pipeline = Pipeline(
+    [
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", SimpleImputer(strategy="median")),
+    ]
+)
+
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
+
+cat_pipeline = Pipeline(
+    [("imputer", SimpleImputer(strategy="most_frequent")), ("cat", OneHotEncoder())]
+)
+
+from sklearn.compose import ColumnTransformer
+
+num_attribs = ["Age", "SibSp", "Parch", "Fare"]
+cat_attribs = ["Age", "SibSp", "Parch", "Fare"]
+
+preprocess_pipeline = ColumnTransformer(
+    [("num", num_pipeline, num_attribs), ("cat", cat_pipeline, cat_attribs)]
+)
+
+X_train = preprocess_pipeline.fit_transform(X_train)
+X_train
+
+y_train = train_data["Survived"]
+
+forest_clf = RandomForestClassifier(n_estimators=100, random_state=42)
+forest_clf.fit(X_train, y_train)
+
+X_test = preprocess_pipeline.transform(test_data)
+y_pred = forest_clf.predict(X_test)
+
+forest_scores = cross_val_score(forest_clf, y_pred, cv=10)
+forest_scores.mean()
+
+from sklearn.svm import SVC
+
+svm_clf = SVC(gamma="auto")
+svm_scores = cross_val_score(svm_clf, y_pred, cv=10)
+svm_scores.mean()
+
+plt.figure(figsize=(8, 4))
+plt.plot([1] * 10, forest_scores, ".")
+plt.plot([2] * 10, svm_scores, ".")
+plt.boxplot([forest_scores, svm_scores], labels=("Random Forest", "SVM"))
+plt.ylabel("Accuracy", fontsize=14)
+plt.show()
+plt.save_fig(os.path.join(os.path.dirname()))
+
+train_data["AgeBucket"] = train_data["Age"] // 15 * 15
+train_data[["AgeBucket", "Survived"]].groupby(["AgeBucket"]).mean()
+
+train_data["RelativesOnboard"] = train_data["SibSp"] + train_data["Parch"]
+train_data[["RelativesOnboard", "Survived"]].groupby(["RelativesOnboard"]).mean()
+
+train_data = train_data.drop(["AgeBucket", "RelativesOnboard"], axis=1)
+train_data.head()
+
+train_data["Deck"] = train_data["Cabin"].str[0]
+train_data[["Deck", "Survived"]].groupby(["Deck"]).mean()
+
+train_data = train_data.drop(["Cabin", "Ticket"], axis=1)
+train_data.head()
+
+train_data["Title"] = train_data["Name"].str.extract(" ([A-Za-z]+)\.", expand=False)
+train_data["Title"].value_counts()
+
+train_data["Title"] = train_data["Title"].replace(
+    [
+        "Lady",
+        "Countess",
+        "Capt",
+        "Col",
+        "Don",
+        "Dr",
+        "Major",
+        "Rev",
+        "Sir",
+        "Jonkheer",
+        "Dona",
+    ],
+    "Rare",
+)
+
+train_data["Title"] = train_data["Title"].replace("Mlle", "Miss")
+train_data["Title"] = train_data["Title"].replace("Ms", "Miss")
+train_data["Title"] = train_data["Title"].replace("Mme", "Mrs")
+
+train_data[["Title", "Survived"]].groupby(["Title"]).mean()
+
+train_data = train_data.drop(["Name"], axis=1)
+train_data.head()
+
+# Spam classifier
+
+import os
+import tarfile
+
+
+def fetch_spam_data():
+    DOWNLOAD_ROOT = "https://spamassassin.apache.org/old/publiccorpus/"
+    HAM_URL = DOWNLOAD_ROOT + "20030228_easy_ham.tar.bz2"
+    SPAM_URL = DOWNLOAD_ROOT + "20030228_spam.tar.bz2"
+    SPAM_PATH = os.path.join("datasets", "spam")
+
+    if not os.path.isdir(SPAM_PATH):
+        os.makedirs(SPAM_PATH)
+    for filename, url in (("ham.tar.bz2", HAM_URL), ("spam.tar.bz2", SPAM_URL)):
+        path = os.path.join(SPAM_PATH, filename)
+        if not os.path.isfile(path):
+            urllib.request.urlretrieve(url, path)
+        tar_bz2_file = tarfile.open(path)
+        tar_bz2_file.extractall(path=SPAM_PATH)
+        tar_bz2_file.close()
+    return SPAM_
+
+
+ham_dir, spam_dir = fetch_spam_data()
+
+ham_filenames = [f for f in sorted(os.listdir(ham_dir)) if len(f) > 20]
+spam_filenames = [f for f in sorted(os.listdir(spam_dir)) if len(f) > 20]
+
+len(ham_filenames)
+
+len(spam_filenames)
+
+import email
+import email.policy
+
+
+def load_email(is_spam, filename, spam_path=SPAM_PATH):
+    directory = "spam" if is_spam else "easy_ham"
+    with open(os.path.join(spam_path, directory, filename), "rb") as f:
+        return email.parser.BytesParser(policy=email.policy.default).parse(f)
+
+
+ham_emails = [load_email(is_spam=False, filename=name) for name in ham_filenames]
+spam_emails = [load_email(is_spam=True, filename=name) for name in spam_filenames]
+
+ham_emails[1].get_content().strip()
+
+print(ham_emails[1].get_content().strip())
+
+
+def get_email_structure(email):
+    if isinstance(email, str):
+        return email
+    payload = email.get_payload()
+    if isinstance(payload, list):
+        return "multipart({})".format(
+            ", ".join([get_email_structure(sub_email) for sub_email in payload])
+        )
+    else:
+        return email.get_content_type()
+
+
+from collections import Counter
+
+
+def structures_counter(emails):
+    structures = Counter()
+    for email in emails:
+        structure = get_email_structure(email)
+        structures[structure] += 1
+    return structures
+
+
+structures_counter(ham_emails).most_common()
+
+structures_counter(spam_emails).most_common()
+
+for header, value in spam_emails[0].items():
+    print(header, ":", value)
+
+spam_emails[0]["Subject"]
+
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+X = np.array(ham_emails + spam_emails, dtype=object)
+y = np.array([0] * len(ham_emails) + [1] * len(spam_emails))
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+import re
+from html import unescape
+
+
+def html_to_plain_text(html):
+    text = re.sub("<head.*?>.*?</head>", "", html, flags=re.M | re.S | re.I)
+    text = re.sub("<a\s.*?>", " HYPERLINK ", text, flags=re.M | re.S | re.I)
+    text = re.sub("<.*?>", "", text, flags=re.M | re.S)
+    text = re.sub(r"(\s*\n)+", "\n", text, flags=re.M | re.S)
+    return unescape(text)
+
+
+html_spam_emails = [
+    email
+    for email in X_train[y_train == 1]
+    if get_email_structure(email) == "text/html"
+]
+sample_html_spam = html_spam_emails[7]
+print(sample_html_spam.get_content().strip()[:1000], "...")
+print(html_to_plain_text(sample_html_spam.get_content())[:1000], "...")
+
+import nltk
+
+stemmer = nltk.PorterStemmer()
+
+for word in (
+    "Computations",
+    "Computation",
+    "Computing",
+    "Computed",
+    "Compute",
+    "Compulsive",
+):
+    print(word, "=>", stemmer.stem(word))
+
+import urlextract
+
+url_extractor = urlextract.URLExtract()
+
+print(
+    url_extractor.find_urls(
+        "Will it detect github.com and https://youtu.be/7Pq-S557XQU?t=3m32s"
+    )
+)
+
+from sklearn.base import BaseEstimator, TransformerMixin
+
+
+class EmailToWordCounterTransformer(BaseEstimator, TransformerMixin):
+    def __init__(
+        self,
+        strip_headers=True,
+        lower_case=True,
+        remove_punctuation=True,
+        replace_urls=True,
+        replace_numbers=True,
+        stemming=True,
+    ):
+        self.strip_headers = strip_headers
+        self.lower_case = lower_case
+        self.remove_punctuation = remove_punctuation
+        self.replace_urls = replace_urls
+        self.replace_numbers = replace_numbers
+        self.stemming = stemming
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X_transformed = []
+        for email in X:
+            text = email_to_text(email)
+            if self.lower_case:
+                text = text.lower()
+            if self.replace_urls and url_extractor is not None:
+                urls = list(set(url_extractor.find_urls(text)))
+                urls.sort(key=lambda url: len(url), reverse=True)
+                for url in urls:
+                    text = text.replace(url, " URL ")
+            if self.replace_numbers:
+                text = re.sub(r"\d+(?:\.\d*(?:[eE]\d+))?", "NUMBER", text)
+            if self.remove_punctuation:
+                text = re.sub(r"\W+", " ", text, flags=re.M)
+            word_counts = Counter(text.split())
+            if self.stemming and stemmer is not None:
+                stemmed_word_counts = Counter()
+                for word, count in word_counts.items():
+                    stemmed_word = stemmer.stem(word)
+                    stemmed_word_counts[stemmed_word] += count
+                word_counts = stemmed_word_counts
+            X_transformed.append(word_counts)
+        return np.array(X_transformed)
+
+
+X_few = X_train[:3]
+X_few_wordcounts = EmailToWordCounterTransformer().fit_transform(X_few)
+X_few_wordcounts
+
+from scipy.sparse import csr_matrix
+
+
+class WordCounterToVectorTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, vocabulary_size=1000):
+        self.vocabulary_size = vocabulary_size
+
+    def fit(self, X, y=None):
+        total_count = Counter()
+        for word_count in X:
+            for word, count in word_count.items():
+                total_count[word] += min(count, 10)
+
+        most_common = total_count.most_common()[: self.vocabulary_size]
+        self.most_common_ = most_common
+        self.vocabulary_ = {
+            word: index + 1 for index, (word, count) in enumerate(most_common)
+        }
+        return self
+
+    def transform(self, X, y=None):
+        rows = []
+        cols = []
+        data = []
+        for row, word_count in enumerate(X):
+            for word, count in word_count.items():
+                rows.append(row)
+                cols.append(self.vocabulary_.get(word, 0))
+                data.append(count)
+
+        return csr_matrix(
+            (data, (rows, cols)), shape=(len(X), self.vocabulary_size + 1)
+        )
+
+
+vocab_transformer = WordCounterToVectorTransformer(vocabulary_size=10)
+X_few_vectors = vocab_transformer.fit_transform(X_few_wordcounts)
+X_few_vectors
+
+X_few_vectors.toarray()
+
+vocab_transformer.vocabulary_
+
+from sklearn.pipeline import Pipeline
+
+preprocess_pipeline = Pipeline(
+    [
+        ("email_to_wordcount", EmailToWordCounterTransformer()),
+        ("wordcount_to_vector", WordCounterToVectorTransformer()),
+    ]
+)
+
+X_train_transformed = preprocess_pipeline.fit_transform(X_train)
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
+
+log_clf = LogisticRegression(solver="liblinear", random_state=42)
+score = cross_val_score(log_clf, X_train_transformed, y_train, cv=3, verbose=3)
+score.mean()
+
+from sklearn.metrics import precision_score, recall_score
+
+X_test_transformed = preprocess_pipeline.transform(X_test)
+
+log_clf = LogisticRegression(solver="liblinear", random_state=42)
+
+log_clf.fit(X_train_transformed, y_train)
+
+y_pred = log_clf.predict(X_test_transformed)
+
+precision_score(y_test, y_pred)
+
+recall_score(y_test, y_pred)
+
+from sklearn.metrics import f1_score
+
+f1_score(y_test, y_pred)
+
+from sklearn.metrics import precision_recall_curve
+
+y_scores = cross_val_predict(
+    log_clf, X_train_transformed, y_train, cv=3, method="decision_function", verbose=3
+)
+
+precisions, recalls, thresholds = precision_recall_curve(y_train, y_scores)
+
+
+def plot_precision_recall_vs_threshold(precisions, recalls, thresholds):
+    plt.plot(thresholds, precisions[:-1], "b--", label="Precision", linewidth=2)
+    plt.plot(thresholds, recalls[:-1], "g-", label="Recall", linewidth=2)
+    plt.xlabel("Threshold", fontsize=16)
+    plt.legend(loc="upper left", fontsize=16)
+    plt.ylim([0, 1])
+
+
+plt.figure(figsize=(8, 4))
+plot_precision_recall_vs_threshold(precisions, recalls, thresholds)
+plt.xlim([-5, 5])
+plt.show()
+plt.save_fig("precision_recall_vs_threshold.png")
+
+(y_train_pred == (y_scores > 0)).all()
