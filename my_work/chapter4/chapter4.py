@@ -826,12 +826,14 @@ plt.show()
 
 # Softmax regression
 
-X = iris.data[["petal length (cm)", "petal width (cm)"]].values 
+X = iris.data[["petal length (cm)", "petal width (cm)"]].values
 y = iris["target"]
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
 
-softmax_reg = LogisticRegression(multi_class="multinomial", solver="lbfgs", C=10, random_state=42)
+softmax_reg = LogisticRegression(
+    multi_class="multinomial", solver="lbfgs", C=10, random_state=42
+)
 softmax_reg.fit(X_train, y_train)
 
 softmax_reg.predict([[5, 2]])
@@ -842,7 +844,9 @@ from matplotlib.colors import ListedColormap
 
 custom_cmap = ListedColormap(["#fafab0", "#9898ff", "#a0faa0"])
 
-x0, x1 = np.meshgrid(np.linspace(0, 8, 500).reshape(-1, 1), np.linspace(0, 3.5, 200).reshape(-1, 1))
+x0, x1 = np.meshgrid(
+    np.linspace(0, 8, 500).reshape(-1, 1), np.linspace(0, 3.5, 200).reshape(-1, 1)
+)
 
 X_new = np.c_[x0.ravel(), x1.ravel()]
 
@@ -853,9 +857,9 @@ zz1 = y_proba[:, 1].reshape(x0.shape)
 zz = y_predict.reshape(x0.shape)
 
 plt.figure(figsize=(10, 4))
-plt.plot(X[y==2, 0], X[y==2, 1], "g^", label="Iris virginica")
-plt.plot(X[y==1, 0], X[y==1, 1], "bs", label="Iris versicolor")
-plt.plot(X[y==0, 0], X[y==0, 1], "yo", label="Iris setosa")
+plt.plot(X[y == 2, 0], X[y == 2, 1], "g^", label="Iris virginica")
+plt.plot(X[y == 1, 0], X[y == 1, 1], "bs", label="Iris versicolor")
+plt.plot(X[y == 0, 0], X[y == 0, 1], "yo", label="Iris setosa")
 
 plt.contourf(x0, x1, zz, cmap=custom_cmap)
 contour = plt.contour(x0, x1, zz1, cmap=plt.cm.brg)
@@ -882,7 +886,7 @@ softmax_reg.predict_proba([[5, 2]])
 # If you have millions of features, you can try PCA, preserving enough variance to
 # obtain a reasonable dataset with fewer features (e.g., 200), then train your
 
-# If the training set have different scales, the best approach is to 
+# If the training set have different scales, the best approach is to
 # scale the data using the StandardScaler, then train the model.
 
 # Can a gradient descent get stuck in a local minimum when training a Logistic Regression model?
@@ -961,13 +965,15 @@ y_test = y[rnd_indices[-test_size:]]
 
 # One Hot Encoding
 
-def to_one_hot(y):    
-        n_classes = y.max() + 1    
-        m = len(y)    
-        Y_one_hot = np.zeros((m, n_classes))    
-        Y_one_hot[np.arange(m), y] = 1    
-        return Y_one_hot
-    
+
+def to_one_hot(y):
+    n_classes = y.max() + 1
+    m = len(y)
+    Y_one_hot = np.zeros((m, n_classes))
+    Y_one_hot[np.arange(m), y] = 1
+    return Y_one_hot
+
+
 y_train_one_hot = to_one_hot(y_train)
 
 y_valid_one_hot = to_one_hot(y_valid)
@@ -976,14 +982,16 @@ y_test_one_hot = to_one_hot(y_test)
 
 # Softmax function
 
+
 def softmax(logits):
     exps = np.exp(logits)
     exp_sums = np.sum(exps, axis=1, keepdims=True)
     return exps / exp_sums
 
-n_inputs = X_train.shape[1] # == 3 (2 features plus the bias term)
 
-n_outputs = len(np.unique(y_train))   # == 3 (3 iris classes)
+n_inputs = X_train.shape[1]  # == 3 (2 features plus the bias term)
+
+n_outputs = len(np.unique(y_train))  # == 3 (3 iris classes)
 
 # Training
 
@@ -1004,9 +1012,9 @@ for iteration in range(n_iterations):
     error = Y_proba - y_train_one_hot
     if iteration % 500 == 0:
         print(iteration, loss)
-    gradients = 1/m * X_train.T.dot(error)
+    gradients = 1 / m * X_train.T.dot(error)
     Theta = Theta - eta * gradients
-    
+
 # Validation
 
 logits = X_valid.dot(Theta)
@@ -1037,7 +1045,7 @@ for iteration in range(n_iterations):
     logits = X_train.dot(Theta)
     Y_proba = softmax(logits)
     error = Y_proba - y_train_one_hot
-    gradients = 1/m * X_train.T.dot(error)
+    gradients = 1 / m * X_train.T.dot(error)
     Theta = Theta - eta * gradients
     logits = X_valid.dot(Theta)
     Y_proba = softmax(logits)
@@ -1050,7 +1058,7 @@ for iteration in range(n_iterations):
         print(iteration - 1, best_loss)
         print(iteration, loss, "early stopping!")
         break
-    
+
 # Predictions on the test set
 
 logits = X_valid.dot(Theta)
@@ -1066,8 +1074,8 @@ print(accuracy_score)
 # Plot the model's predictions on the whole dataset
 
 x0, x1 = np.meshgrid(
-        np.linspace(0, 8, 500).reshape(-1, 1),
-        np.linspace(0, 3.5, 200).reshape(-1, 1))
+    np.linspace(0, 8, 500).reshape(-1, 1), np.linspace(0, 3.5, 200).reshape(-1, 1)
+)
 X_new = np.c_[x0.ravel(), x1.ravel()]
 X_new_with_bias = np.c_[np.ones([len(X_new), 1]), X_new]
 y_proba = softmax(X_new_with_bias.dot(Theta))
@@ -1077,13 +1085,13 @@ zz1 = y_proba[:, 1].reshape(x0.shape)
 zz = y_predict.reshape(x0.shape)
 
 plt.figure(figsize=(10, 4))
-plt.plot(X[y==2, 0], X[y==2, 1], "g^", label="Iris virginica")
-plt.plot(X[y==1, 0], X[y==1, 1], "bs", label="Iris versicolor")
-plt.plot(X[y==0, 0], X[y==0, 1], "yo", label="Iris setosa")
+plt.plot(X[y == 2, 0], X[y == 2, 1], "g^", label="Iris virginica")
+plt.plot(X[y == 1, 0], X[y == 1, 1], "bs", label="Iris versicolor")
+plt.plot(X[y == 0, 0], X[y == 0, 1], "yo", label="Iris setosa")
 
 from matplotlib.colors import ListedColormap
 
-custom_cmap = ListedColormap(['#fafab0','#9898ff','#a0faa0'])
+custom_cmap = ListedColormap(["#fafab0", "#9898ff", "#a0faa0"])
 
 plt.contourf(x0, x1, zz, cmap=custom_cmap)
 contour = plt.contour(x0, x1, zz1, cmap=plt.cm.brg)
@@ -1094,7 +1102,7 @@ plt.ylabel("Petal width", fontsize=14)
 plt.legend(loc="center left", fontsize=14)
 plt.axis([0, 7, 0, 3.5])
 plt.show()
-save_figure("softmax_regression_contour_plot")
+save_fig("softmax_regression_contour_plot")
 
 # Using Scikit-Learn
 
@@ -1102,7 +1110,7 @@ X = iris["data"][:, (2, 3)]  # petal length, petal width
 
 y = iris["target"]
 
-softmax_reg = LogisticRegression(multi_class="multinomial",solver="lbfgs", C=10)
+softmax_reg = LogisticRegression(multi_class="multinomial", solver="lbfgs", C=10)
 
 softmax_reg.fit(X, y)
 
@@ -1116,11 +1124,13 @@ X = iris["data"][:, (2, 3)]  # petal length, petal width
 
 y = iris["target"]
 
-softmax_reg = LogisticRegression(multi_class="multinomial",solver="lbfgs", C=10)
+softmax_reg = LogisticRegression(multi_class="multinomial", solver="lbfgs", C=10)
 
 softmax_reg.fit(X, y)
 
-x0, x1 = np.meshgrid((np.linspace(0, 8, 500).reshape(-1, 1)),(np.linspace(0, 3.5, 200).reshape(-1, 1)))
+x0, x1 = np.meshgrid(
+    (np.linspace(0, 8, 500).reshape(-1, 1)), (np.linspace(0, 3.5, 200).reshape(-1, 1))
+)
 
 X_new = np.c_[x0.ravel(), x1.ravel()]
 
@@ -1134,13 +1144,13 @@ zz = y_predict.reshape(x0.shape)
 
 plt.figure(figsize=(10, 4))
 
-plt.plot(X[y==2, 0], X[y==2, 1], "g^", label="Iris virginica")
-plt.plot(X[y==1, 0], X[y==1, 1], "bs", label="Iris versicolor")
-plt.plot(X[y==0, 0], X[y==0, 1], "yo", label="Iris setosa")
+plt.plot(X[y == 2, 0], X[y == 2, 1], "g^", label="Iris virginica")
+plt.plot(X[y == 1, 0], X[y == 1, 1], "bs", label="Iris versicolor")
+plt.plot(X[y == 0, 0], X[y == 0, 1], "yo", label="Iris setosa")
 
 from matplotlib.colors import ListedColormap
 
-custom_cmap = ListedColormap(['#fafab0','#9898ff','#a0faa0'])
+custom_cmap = ListedColormap(["#fafab0", "#9898ff", "#a0faa0"])
 
 plt.contourf(x0, x1, zz, cmap=custom_cmap)
 
@@ -1155,7 +1165,7 @@ plt.axis([0, 7, 0, 3.5])
 plt.grid(True)
 plt.show()
 
-save_figure("softmax_regression_contour_plot")
+save_fig("softmax_regression_contour_plot")
 
 # Exercise 13
 
@@ -1163,11 +1173,13 @@ X = iris["data"][:, (2, 3)]  # petal length, petal width
 
 y = iris["target"]
 
-softmax_reg = LogisticRegression(multi_class="multinomial",solver="lbfgs", C=10)
+softmax_reg = LogisticRegression(multi_class="multinomial", solver="lbfgs", C=10)
 
 softmax_reg.fit(X, y)
 
-x0, x1 = np.meshgrid((np.linspace(0, 8, 500).reshape(-1, 1)),(np.linspace(0, 3.5, 200).reshape(-1, 1)))
+x0, x1 = np.meshgrid(
+    (np.linspace(0, 8, 500).reshape(-1, 1)), (np.linspace(0, 3.5, 200).reshape(-1, 1))
+)
 
 X_new = np.c_[x0.ravel(), x1.ravel()]
 
@@ -1181,15 +1193,18 @@ zz = y_predict.reshape(x0.shape)
 
 left_right = np.array([2.9, 7])
 
-boundary = -(softmax_reg.coef_[0][0] * left_right + softmax_reg.intercept_[0]) / softmax_reg.coef_[0][1]
+boundary = (
+    -(softmax_reg.coef_[0][0] * left_right + softmax_reg.intercept_[0])
+    / softmax_reg.coef_[0][1]
+)
 
 plt.figure(figsize=(10, 4))
 
-plt.plot(X[y==2, 0], X[y==2, 1], "g^", label="Iris virginica")
+plt.plot(X[y == 2, 0], X[y == 2, 1], "g^", label="Iris virginica")
 
-plt.plot(X[y==1, 0], X[y==1, 1], "bs", label="Iris versicolor")
+plt.plot(X[y == 1, 0], X[y == 1, 1], "bs", label="Iris versicolor")
 
-plt.plot(X[y==0, 0], X[y==0, 1], "yo", label="Iris setosa")
+plt.plot(X[y == 0, 0], X[y == 0, 1], "yo", label="Iris setosa")
 
 plt.plot(left_right, boundary, "k--", linewidth=3)
 
@@ -1209,7 +1224,7 @@ plt.grid(True)
 
 plt.show()
 
-save_figure("softmax_regression_contour_plot")
+save_fig("softmax_regression_contour_plot")
 
 # Exercise 14
 
@@ -1217,11 +1232,13 @@ X = iris["data"][:, (2, 3)]  # petal length, petal width
 
 y = iris["target"]
 
-softmax_reg = LogisticRegression(multi_class="multinomial",solver="lbfgs", C=10)
+softmax_reg = LogisticRegression(multi_class="multinomial", solver="lbfgs", C=10)
 
 softmax_reg.fit(X, y)
 
-x0, x1 = np.meshgrid((np.linspace(0, 8, 500).reshape(-1, 1)),(np.linspace(0, 3.5, 200).reshape(-1, 1)))
+x0, x1 = np.meshgrid(
+    (np.linspace(0, 8, 500).reshape(-1, 1)), (np.linspace(0, 3.5, 200).reshape(-1, 1))
+)
 
 X_new = np.c_[x0.ravel(), x1.ravel()]
 
@@ -1235,15 +1252,18 @@ zz = y_predict.reshape(x0.shape)
 
 left_right = np.array([2.9, 7])
 
-boundary = -(softmax_reg.coef_[0][0] * left_right + softmax_reg.intercept_[0]) / softmax_reg.coef_[0][1]
+boundary = (
+    -(softmax_reg.coef_[0][0] * left_right + softmax_reg.intercept_[0])
+    / softmax_reg.coef_[0][1]
+)
 
 plt.figure(figsize=(10, 4))
 
-plt.plot(X[y==2, 0], X[y==2, 1], "g^", label="Iris virginica")
+plt.plot(X[y == 2, 0], X[y == 2, 1], "g^", label="Iris virginica")
 
-plt.plot(X[y==1, 0], X[y==1, 1], "bs", label="Iris versicolor")
+plt.plot(X[y == 1, 0], X[y == 1, 1], "bs", label="Iris versicolor")
 
-plt.plot(X[y==0, 0], X[y==0, 1], "yo", label="Iris setosa")
+plt.plot(X[y == 0, 0], X[y == 0, 1], "yo", label="Iris setosa")
 
 plt.plot(left_right, boundary, "k--", linewidth=3)
 
@@ -1263,8 +1283,4 @@ plt.grid(True)
 
 plt.show()
 
-save_figure("softmax_regression_contour_plot")
-
-
-
-
+save_fig("softmax_regression_contour_plot")
