@@ -318,3 +318,123 @@ save_fig("pca_preprocessing_plot")
 plt.show()
 
 # Decision Trees Have High Variance
+
+tree_clf_tweaked = DecisionTreeClassifier(max_depth=2, random_state=40)
+tree_clf_tweaked.fit(X_iris, y_iris)
+
+# extra code – this cell generates and saves Figure 6–9
+
+plt.figure(figsize=(8, 4))
+y_pred = tree_clf_tweaked.predict(X_iris_all).reshape(lengths.shape)
+plt.contourf(lengths, widths, y_pred, alpha=0.3, cmap=custom_cmap)
+
+for idx, (name, style) in enumerate(zip(iris.target_names, ("yo", "bs", "g^"))):
+    plt.plot(
+        X_iris[:, 0][y_iris == idx],
+        X_iris[:, 1][y_iris == idx],
+        style,
+        label=f"Iris {name}",
+    )
+
+th0, th1 = tree_clf_tweaked.tree_.threshold[[0, 2]]
+plt.plot([0, 7.2], [th0, th0], "k-", linewidth=2)
+plt.plot([0, 7.2], [th1, th1], "k--", linewidth=2)
+plt.text(1.8, th0 + 0.05, "Depth=0", verticalalignment="bottom", fontsize=15)
+plt.text(2.3, th1 + 0.05, "Depth=1", verticalalignment="bottom", fontsize=13)
+plt.xlabel("Petal length (cm)")
+plt.ylabel("Petal width (cm)")
+plt.axis([0, 7.2, 0, 3])
+plt.legend()
+save_fig("decision_tree_high_variance_plot")
+
+plt.show()
+
+# Extra material - accessing the tree structure
+
+from sklearn.tree import _tree
+
+
+def get_leaf_counts(tree):
+    left_child = tree.children_left
+    right_child = tree.children_right
+
+    leaf_count = np.zeros(tree.node_count, dtype=int)
+
+    stack = [(0, -1)]  # seed is the root node id and its parent depth
+    while len(stack) > 0:
+        node_id, parent_depth = stack.pop()
+
+        # If we have a test node
+        if left_child[node_id] != right_child[node_id]:
+            stack.append((left_child[node_id], parent_depth + 1))
+            stack.append((right_child[node_id], parent_depth + 1))
+        else:
+            leaf_count[parent_depth + 1] += 1
+
+    return leaf_count
+
+
+tree = tree_clf.tree_
+print(tree)
+
+tree.node_count
+
+tree.max_depth
+
+tree.max_n_classes
+
+tree.n_features
+
+tree.n_outputs
+
+tree.children_left
+
+tree.children_right
+
+tree.feature
+
+tree.n_leaves
+
+tree.threshold
+
+tree.impurity
+
+tree.children_left[tree.max_depth], tree.children_right[tree.max_depth]
+
+is_leaf = tree.children_left == tree.children_right
+
+np.arrange(tree.node_count)[is_leaf]
+
+tree.feature
+
+tree.values()
+
+tree.n_node_samples
+
+np.all(tree.value.sum(axis=1) == tree.n_node_samples)
+
+
+def compute_depth(tree_clf):
+    is_leaf = tree_clf.tree_.children_left == tree_clf.tree_.children_right
+    node_depth = np.zeros(shape=tree_clf.tree_.node_count, dtype=np.int64)
+    stack = [(0, -1)]  # seed is the root node id and its parent depth
+    while len(stack) > 0:
+        node_id, parent_depth = stack.pop()
+        node_depth[node_id] = parent_depth + 1
+        # If we have a test node
+        if not is_leaf[node_id]:
+            stack.append((tree_clf.tree_.children_left[node_id], parent_depth + 1))
+            stack.append((tree_clf.tree_.children_right[node_id], parent_depth + 1))
+    return node_depth
+
+
+tree_clf.tree_.feature[(tree_clf.tree_.children_left == tree_clf.tree_.children_right)]
+
+tree_clf.tree__.threshold[
+    (tree_clf.tree_.children_left == tree_clf.tree_.children_right)
+]
+
+
+def compute_leaf_samples(tree_clf):
+    is_leaf = tree_clf.tree_.children_left == tree_clf.tree_.children_right
+    return tree_clf.tree_.n_node_samples[is_leaf]
